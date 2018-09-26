@@ -22,9 +22,28 @@ public class ThumbnailDownloader<T> extends HandlerThread {
 
     private Handler mRequestHandler;
     private ConcurrentMap<T, String> mRequestMap = new ConcurrentHashMap<>();
+    private Handler mResponseHandler; // Handler c ссылкой на Looper главного потока
 
-    public ThumbnailDownloader() {
+    // Передадим ответственность за обработку загруженного изображения другому классу
+    // (в данном случае PhotoGalleryFragment)
+    private ThumbnailDownloadListener<T> mThumbnailDownloadListener;
+
+    /**
+     * Интерфейс, который должен реализовать класс-обработчик изображения
+     *
+     * @param <T> Идентификатор в виде PhotoHolder
+     */
+    public interface ThumbnailDownloadListener<T> {
+        void onThumbnailDownloaded(T target, Bitmap thumbnail);
+    }
+
+    public void setThumbnailDownloadListener(ThumbnailDownloadListener<T> listener) {
+        mThumbnailDownloadListener = listener;
+    }
+
+    public ThumbnailDownloader(Handler responseHandler) {
         super(TAG);
+        mResponseHandler = responseHandler;
     }
 
     /**
@@ -32,11 +51,15 @@ public class ThumbnailDownloader<T> extends HandlerThread {
      */
     @Override
     protected void onLooperPrepared() {
-        // В отдельном потоке
-        mRequestHandler = new  Handler() {
+        // Handler всегда ассоцируется с Looper текущего потока.
+        // P.s. Затем этот экземпляр Handler можно передать другому потоку.
+        // Переданный экземпляр Handler сохраняет связь с Looper потока-создателя.
+        // Все сообщения, за которые отвечает Handler, будут обрабатываться
+        // в очереди Looper связанного потока.
+        mRequestHandler = new Handler() {
             @Override
             public void handleMessage(Message msg) {
-                if(msg.what == MESSAGE_DOWNLOAD) {
+                if (msg.what == MESSAGE_DOWNLOAD) {
                     T target = (T) msg.obj;
                     Log.i(TAG, "Got a request for URL: " + mRequestMap.get(target));
                     handleDownloadThumbnailRequest(target);
@@ -62,9 +85,29 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             final Bitmap bitmap = BitmapFactory
                     .decodeByteArray(bitmapBytes, 0, bitmapBytes.length);
             Log.i(TAG, "Bitmap created");
+
+            // Runnable будет выполнен в том потоке,
+            // к которому привязан данный Handler.
+            mResponseHandler.post(new Runnable() {
+                public void run() {
+                    if (mRequestMap.get(target) != url ||
+                            mHasQuit) {
+                        return;
+                    }
+                    mRequestMap.remove(target);
+                    mThumbnailDownloadListener.onThumbnailDownloaded(target,
+                            bitmap);
+                }
+            });
         } catch (IOException ioe) {
             Log.e(TAG, "Error downloading image", ioe);
-        } }
+        }
+    }
+
+    public void clearQueue() {
+        mRequestHandler.removeMessages(MESSAGE_DOWNLOAD);
+        mRequestMap.clear();
+    }
 
     @Override
     public boolean quit() {
@@ -74,8 +117,9 @@ public class ThumbnailDownloader<T> extends HandlerThread {
 
     /**
      * Выполняется в MAIN потоке.
+     *
      * @param target PhotoHolder
-     * @param url URL картинки, которая будет вставлена в PhotoHolder
+     * @param url    URL картинки, которая будет вставлена в PhotoHolder
      */
     public void queueThumbnail(T target, String url) {
         Log.i(TAG, "Got a URL: " + url);
@@ -88,6 +132,8 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             // URL сохраняется в mRequestMap, и является постоянно
             // актуальным, т.к. target это PhotoHolder,
             // который часто переиспользуется
+            // ---------------------------------------------------
+            // Handler всегда ассоцируется с Looper текущего потока.
             // ---------------------------------------------------
             // mRequestHandler далее передает сообщение в очередь
             // сообщений Лупперу, который выполняется в отдельном потоке.

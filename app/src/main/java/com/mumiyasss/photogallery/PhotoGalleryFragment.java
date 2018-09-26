@@ -1,8 +1,11 @@
 package com.mumiyasss.photogallery;
 
+import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -32,9 +35,18 @@ public class PhotoGalleryFragment extends Fragment {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
         new FetchItemsTask().execute();
-
-        Log.d("MUL", Thread.currentThread().getName());
-        mThumbnailDownloader = new ThumbnailDownloader<>();
+        // Handler создается в onCreate() -> будет связан с главным Looper.
+        Handler responseHandler = new Handler();
+        mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
+        mThumbnailDownloader.setThumbnailDownloadListener(
+                new ThumbnailDownloader.ThumbnailDownloadListener<PhotoHolder>() {
+                    @Override
+                    public void onThumbnailDownloaded(PhotoHolder photoHolder, Bitmap bitmap) {
+                        Drawable drawable = new BitmapDrawable(getResources(), bitmap);
+                        photoHolder.bindDrawable(drawable);
+                    }
+                }
+        );
         // Метод start() вызывает переопределенный метод run()
         // в классе HandlerThread. В методе run() вызвается сначала
         // onLooperPrepared, а затем Looper.loop() который
@@ -51,6 +63,13 @@ public class PhotoGalleryFragment extends Fragment {
         mThumbnailDownloader.quit();
         Log.i(TAG, "Background thread destroyed");
     }
+
+    @Override
+    public void onDestroyView() {
+        super.onDestroyView();
+        mThumbnailDownloader.clearQueue();
+    }
+
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
