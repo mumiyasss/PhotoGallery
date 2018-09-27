@@ -18,6 +18,7 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 
 import com.mumiyasss.photogallery.model.GalleryItem;
 import com.mumiyasss.photogallery.net.FlickrFetchr;
@@ -27,6 +28,7 @@ import java.util.List;
 
 public class PhotoGalleryFragment extends Fragment {
     private RecyclerView mPhotoRecyclerView;
+    private ProgressBar progressBar;
     private List<GalleryItem> mItems = new ArrayList<>();
     private static final String TAG = "PHOTO_GALLERY_FRAGMENT";
     private ThumbnailDownloader<PhotoHolder> mThumbnailDownloader;
@@ -82,14 +84,18 @@ public class PhotoGalleryFragment extends Fragment {
                              Bundle savedInstanceState) {
         View v = inflater.inflate(R.layout.fragment_photo_gallery, container,
                 false);
-
+        progressBar = v.findViewById(R.id.progressBar);
         mPhotoRecyclerView = v.findViewById(R.id.photo_recycler_view);
         mPhotoRecyclerView.setLayoutManager(new GridLayoutManager(getActivity(), 3));
+        mPhotoRecyclerView.setVisibility(View.GONE);
+
         setupAdapter();
         return v;
     }
 
     private void setupAdapter() {
+        progressBar.setVisibility(View.GONE);
+        mPhotoRecyclerView.setVisibility(View.VISIBLE);
         if (isAdded()) {
             mPhotoRecyclerView.setAdapter(new PhotoAdapter(mItems));
         }
@@ -157,6 +163,8 @@ public class PhotoGalleryFragment extends Fragment {
             @Override
             public boolean onQueryTextSubmit(String s) {
                 QueryPreferences.setStoredQuery(getActivity(), s);
+                mPhotoRecyclerView.setVisibility(View.GONE);
+                progressBar.setVisibility(View.VISIBLE);
                 // Todo: QueryPref is working in diffrent thread. WARNING
                 updateItems();
                 return true;
@@ -190,6 +198,7 @@ public class PhotoGalleryFragment extends Fragment {
     }
 
     private void updateItems() {
+        // Включим ProgressBar
         // Todo: QueryPref is working in diffrent thread. WARNING
         String query = QueryPreferences.getStoredQuery(getActivity());
         new FetchItemsTask(query).execute();

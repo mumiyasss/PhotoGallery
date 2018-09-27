@@ -1,7 +1,30 @@
-<android.support.v7.widget.RecyclerView
-     xmlns:android="http://schemas.android.com/apk/res/android"
+<android.support.constraint.ConstraintLayout xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/photo_recycler_view"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".activity.PhotoGalleryActivity"/>
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <android.support.v7.widget.RecyclerView xmlns:android="http://schemas.android.com/apk/res/android"
+        xmlns:tools="http://schemas.android.com/tools"
+        android:id="@+id/photo_recycler_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        tools:context=".activity.PhotoGalleryActivity"
+        tools:layout_editor_absoluteX="16dp"
+        tools:layout_editor_absoluteY="0dp" />
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:layout_marginStart="148dp"
+        android:layout_marginTop="88dp"
+        app:layout_constraintEnd_toEndOf="@+id/photo_recycler_view"
+        app:layout_constraintHorizontal_bias="0.111"
+        app:layout_constraintStart_toStartOf="@+id/photo_recycler_view"
+        app:layout_constraintTop_toTopOf="@+id/photo_recycler_view" />
+
+
+</android.support.constraint.ConstraintLayout>
+
