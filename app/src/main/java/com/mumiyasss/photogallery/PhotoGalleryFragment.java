@@ -9,13 +9,18 @@ import android.os.Handler;
 import android.support.v4.app.Fragment;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
+import android.support.v7.widget.SearchView;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 
 import com.mumiyasss.photogallery.model.GalleryItem;
+import com.mumiyasss.photogallery.net.FlickrFetchr;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,7 +39,8 @@ public class PhotoGalleryFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setRetainInstance(true);
-        new FetchItemsTask().execute();
+        setHasOptionsMenu(true);
+        updateItems();
         // Handler создается в onCreate() -> будет связан с главным Looper.
         Handler responseHandler = new Handler();
         mThumbnailDownloader = new ThumbnailDownloader<>(responseHandler);
@@ -121,6 +127,11 @@ public class PhotoGalleryFragment extends Fragment {
 
         @Override
         public void onBindViewHolder(PhotoHolder photoHolder, int position) {
+            // TODO: предварительная загрузка элементов в отдельном потоке
+            // TODO: c помощью передачи ссылки на ListItems и position
+            // TODO предыдущие элементы не надо загружать, потому что и так с
+            // TODO: самого начала. После загрузки последнего видимого элемента,
+            // TODO : начанаем загружать не видимые!
             GalleryItem galleryItem = mGalleryItems.get(position);
             // Ставим пикчу-заглушку
             Drawable placeholder = getResources().getDrawable(R.drawable.photo_load);
@@ -135,13 +146,79 @@ public class PhotoGalleryFragment extends Fragment {
         }
     }
 
+    @Override
+    public void onCreateOptionsMenu(Menu menu, MenuInflater menuInflater) {
+        super.onCreateOptionsMenu(menu, menuInflater);
+        menuInflater.inflate(R.menu.fragment_photo_gallery, menu);
+
+        MenuItem searchItem = menu.findItem(R.id.menu_item_search);
+        final SearchView searchView = (SearchView) searchItem.getActionView();
+        searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
+            @Override
+            public boolean onQueryTextSubmit(String s) {
+                QueryPreferences.setStoredQuery(getActivity(), s);
+                // Todo: QueryPref is working in diffrent thread. WARNING
+                updateItems();
+                return true;
+            }
+
+            @Override
+            public boolean onQueryTextChange(String s) {
+                // Можно подстававить поисковые предложения
+                return false;
+            }
+        });
+        // Заполнение поля последним запросом.
+        searchView.setOnSearchClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String query = QueryPreferences.getStoredQuery(getActivity());
+                searchView.setQuery(query, false);
+            } });
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case R.id.menu_item_clear: // Стирание запроса
+                QueryPreferences.setStoredQuery(getActivity(), null);
+                updateItems();
+                return true;
+            default:
+                return super.onOptionsItemSelected(item);
+        }
+    }
+
+    private void updateItems() {
+        // Todo: QueryPref is working in diffrent thread. WARNING
+        String query = QueryPreferences.getStoredQuery(getActivity());
+        new FetchItemsTask(query).execute();
+    }
+
 
     // ToDo: memory leak Warning
     // RxJava(especially for Retrofit) or JobScheduler may be a solution
     private class FetchItemsTask extends AsyncTask<Void, Void, List<GalleryItem>> {
+        private String mQuery;
+
+        public FetchItemsTask(String query) {
+            mQuery = query;
+        }
+
+        /**
+         * В этом методе скачивается и обрабатывается JSON.
+         * Все элементы JSON(метаданные о фотографиях) передаются
+         * в метод onPostExecute через return.
+         *
+         * @return List<GalleryItem>PhotoItems
+         */
         @Override
         protected List<GalleryItem> doInBackground(Void... params) {
-            return new FlickrFetchr().fetchItems();
+            if (mQuery == null) {
+                return new FlickrFetchr().fetchRecentPhotos();
+            } else {
+                return new FlickrFetchr().searchPhotos(mQuery);
+            }
         }
 
         @Override
