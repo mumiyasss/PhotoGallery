@@ -46,6 +46,9 @@ public class ThumbnailDownloader<T> extends HandlerThread {
         mResponseHandler = responseHandler;
     }
 
+    // Todo: динамическое определение свободного места под кэш
+    private PhotoCache photoCache = new PhotoCache(100);
+
     /**
      * Этот метод вызвается в run().
      */
@@ -66,6 +69,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
                 }
             }
         };
+
     }
 
     /**
@@ -81,10 +85,19 @@ public class ThumbnailDownloader<T> extends HandlerThread {
             if (url == null) {
                 return;
             }
-            byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(url);
-            final Bitmap bitmap = BitmapFactory
-                    .decodeByteArray(bitmapBytes, 0, bitmapBytes.length);
-            Log.i(TAG, "Bitmap created");
+
+            final Bitmap bitmapToShow;
+            final Bitmap cachedBitmap = photoCache.getBitmapFromMemory(url);
+            if (cachedBitmap == null) {
+                byte[] bitmapBytes = new FlickrFetchr().getUrlBytes(url);
+                bitmapToShow = BitmapFactory
+                        .decodeByteArray(bitmapBytes, 0, bitmapBytes.length);
+                photoCache.setBitmapToMemory(url, bitmapToShow);
+                Log.i(TAG, "Bitmap created");
+            } else {
+                Log.d("TEST_CACHE", "Достаем из кэша");
+                bitmapToShow = cachedBitmap;
+            }
 
             // Runnable будет выполнен в том потоке,
             // к которому привязан данный Handler.
@@ -96,7 +109,7 @@ public class ThumbnailDownloader<T> extends HandlerThread {
                     }
                     mRequestMap.remove(target);
                     mThumbnailDownloadListener.onThumbnailDownloaded(target,
-                            bitmap);
+                            bitmapToShow);
                 }
             });
         } catch (IOException ioe) {
